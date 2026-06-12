@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block extra_scripts %}
+<script>
+    let currentSessionId = null;
+    let currentMessages = [];
+    let allSessions = [];
+    let isSearchEnabled = false;
+    let isReasoningEnabled = false;
+
+    const sessionsListDiv = document.getElementById('sessionsList');
+    const messagesArea = document.getElementById('messagesArea');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const conversationTitle = document.getElementById('conversationTitle');
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => (m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'));
+    }
+
+    function addMessageToUI(role, content, scroll = true) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message-bubble ${role === 'user' ? 'user-message' : 'bot-message'}`;
+        if (role === 'user') {
+            msgDiv.textContent = content;
+        } else {
+            try {
+                const html = marked.parse(content);
+                msgDiv.innerHTML = `<div class="markdown-content">${html}</div>`;
+                if (typeof hljs !== 'undefined') {
+                    msgDiv.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
+                }
+            } catch(e) {
+                msgDiv.innerHTML = `<div class="markdown-content">${escapeHtml(content)}</div>`;
+            }
+        }
+        messagesArea.appendChild(msgDiv);
+        if (scroll) scrollToBottom();
+    }
+
+    function scrollToBottom() { messagesArea.scrollTop = messagesArea.scrollHeight; }
+
+    let typingDiv = null;
+    function showTyping() {
+        if (typingDiv) return;
+        typingDiv = document.createElement('div');
+        typingDiv.className = 'typing-indicator';
+        typingDiv.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+        messagesArea.appendChild(typingDiv);
+        scrollToBottom();
+    }
+    function hideTyping() {
+        if (typingDiv) { typingDiv.remove(); typingDiv = null; }
+    }
+
+    function updateToggleButtons() {
+        const searchBtn = document.getElementById('searchToggleBtn');
+        const reasoningBtn = document.getElementById('reasoningToggleBtn');
+        if (searchBtn) searchBtn.classList.toggle('active', isSearchEnabled);
+        if (reasoningBtn) reasoningBtn.classList.toggle('active', isReasoningEnabled);
+    }
+
+    async function fetchSessions() {
+        const res = await fetch('/api/sessions');
+        allSessions = await res.json();
+        renderSessionsList();
+        if (allSessions.length === 0) await createNewSession();
+        else if (!currentSessionId) loadSession(allSessions[0].id);
+    }
+
+    function renderSessionsList() {
+        sessionsListDiv.innerHTML = '';
+        if (allSessions.length === 0) {
+            sessionsListDiv.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">Aucune conversation</div>';
+            return;
+        }
+        for (const sess of allSessions) {
+            const div = document.createElement('div');
+            div.className = `session-item ${currentSessionId == sess.id ? 'active' : ''}`;
+            div.innerHTML = `<span class="session-name" data-id="${sess.id}">${escapeHtml(sess.name)}</span>
+                            <button class="delete-session" data-id="${sess.id}"><i class="fas fa-trash-alt"></i></button>`;
+            div.querySelector('.session-name').addEventListener('click', () => loadSession(sess.id));
+            div.querySelector('.delete-session').addEventListener('click', (e) => { e.stopPropagation(); deleteSession(sess.id); });
+            sessionsListDiv.appendChild(div);
+        }
+    }
+
+    async function loadSession(sessionId) {
+        if (currentSessionId == sessionId) return;
+        currentSessionId = sessionId;
+        const res = await fetch(`/api/sessions/${sessionId}/messages`);
+        const data = await res.json();
+        currentMessages = data.messages || [];
+        if (data.model && modelSelect.querySelector(`option[value="${data.model}"]`)) modelSelect.value = data.model;
+        renderMessages();
+        document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
+        const activeItem = document.querySelector(`.session-item .session-name[data-id="${sessionId}"]`)?.parentElement;
+        if (activeItem) activeItem.classList.add('active');
+        const session = allSessions.find(s => s.id == sessionId);
+        conversationTitle.innerText = session ? session.name : 'Conversation';
+    }
+
+    function renderMessages() {
+        messagesArea.innerHTML = '';
+        if (currentMessages.length === 0) {
+            messagesArea.innerHTML = '<div style="text-align:center; margin-top:2rem;"><i class="fas fa-graduation-cap" style="font-size:2rem; color:var(--accent);"></i><h3>Comment puis-je vous aider aujourd’hui ?</h3></div>';
+            return;
+        }
+        for (const msg of currentMessages) addMessageToUI(msg.role, msg.content, false);
+        scrollToBottom();
+    }
+
+    async function sendMessage(messageText = null) {
+        const message = messageText !== null ? messageText : userInput.value.trim();
+        if (!message) return;
+        if (!currentSessionId) {
+            await createNewSession();
+            if (!currentSessionId) return;
+        }
+        addMessageToUI('user', message);
+        if (messageText === null) userInput.value = '';
+        userInput.style.height = 'auto';
+        showTyping();
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: currentSessionId,
+                    message: message,
+                    model: modelSelect.value,
+                    enable_search: isSearchEnabled,
+                    enable_reasoning: isReasoningEnabled
+                })
+            });
+            const data = await response.json();
+            hideTyping();
+            if (data.error) addMessageToUI('bot', `❌ Erreur : ${data.error}`);
+            else addMessageToUI('bot', data.reply);
+            await fetchSessions();
+            if (data.conversation_name) conversationTitle.innerText = data.conversation_name;
+            await loadSession(currentSessionId);
+        } catch (err) {
+            hideTyping();
+            addMessageToUI('bot', `❌ Erreur réseau : ${err.message}`);
+        }
+        if (messageText === null) userInput.focus();
+    }
+
+    async function createNewSession() {
+        const res = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: null }) });
+        const data = await res.json();
+        await fetchSessions();
+        if (data.session_id) loadSession(data.session_id);
+    }
+
+    async function deleteSession(sessionId) {
+        if (!confirm('Supprimer cette conversation ?')) return;
+        await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+        if (currentSessionId == sessionId) {
+            currentSessionId = null;
+            messagesArea.innerHTML = '<div style="text-align:center; margin-top:2rem;"><i class="fas fa-graduation-cap"></i><h3>Conversation supprimée</h3></div>';
+        }
+        await fetchSessions();
+        if (allSessions.length > 0 && !currentSessionId) loadSession(allSessions[0].id);
+    }
+
+    // ---------- GÉNÉRATION D'IMAGE ----------
+    document.getElementById('imageGenBtn').addEventListener('click', async () => {
+        const prompt = userInput.value.trim();
+        if (!prompt) {
+            alert("Veuillez décrire l'image dans le champ de texte.");
+            return;
+        }
+        showTyping();
+        try {
+            const response = await fetch('/api/generate-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt })
+            });
+            const data = await response.json();
+            hideTyping();
+            if (data.image_url) {
+                addMessageToUI('bot', `🎨 **Image générée** :\n\n![Image](${data.image_url})`);
+            } else {
+                addMessageToUI('bot', `❌ Erreur : ${data.error || "Impossible de générer l'image"}`);
+            }
+        } catch (err) {
+            hideTyping();
+            addMessageToUI('bot', `❌ Erreur réseau : ${err.message}`);
+        }
+    });
+
+    // ---------- GÉNÉRATION DE VIDÉO ----------
+    document.getElementById('videoGenBtn').addEventListener('click', async () => {
+        const prompt = userInput.value.trim();
+        if (!prompt) {
+            alert("Veuillez décrire la vidéo dans le champ de texte.");
+            return;
+        }
+        showTyping();
+        addMessageToUI('bot', `⏳ Génération de la vidéo en cours... (peut prendre jusqu'à 2 minutes)`);
+        try {
+            const response = await fetch('/api/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt })
+            });
+            const data = await response.json();
+            hideTyping();
+            if (data.video_url) {
+                addMessageToUI('bot', `🎬 **Vidéo générée** :\n\n<video controls src="${data.video_url}" style="max-width:100%; border-radius:0.5rem;"></video>`);
+            } else {
+                addMessageToUI('bot', `❌ Erreur : ${data.error || "Impossible de générer la vidéo"}`);
+            }
+        } catch (err) {
+            hideTyping();
+            addMessageToUI('bot', `❌ Erreur réseau : ${err.message}`);
+        }
+    });
+
+    // Suggestions
+    document.querySelectorAll('.suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', () => sendMessage(chip.getAttribute('data-suggestion')));
+    });
+
+    document.getElementById('searchToggleBtn').addEventListener('click', () => { isSearchEnabled = !isSearchEnabled; updateToggleButtons(); });
+    document.getElementById('reasoningToggleBtn').addEventListener('click', () => { isReasoningEnabled = !isReasoningEnabled; updateToggleButtons(); });
+    sendBtn.addEventListener('click', () => sendMessage());
+    userInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+    newChatBtn.addEventListener('click', createNewSession);
+    userInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 100) + 'px'; });
+
+    updateToggleButtons();
+    fetchSessions();
+</script>
+{% endblock %}
