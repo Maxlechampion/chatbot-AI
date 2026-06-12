@@ -4,6 +4,7 @@ from models import db
 from auth import auth
 from chat import chat
 from flask_login import LoginManager
+app = create_app()
 
 def create_app():
     app = Flask(__name__)
