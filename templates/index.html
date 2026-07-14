@@ -1,577 +1,241 @@
-<!DOCTYPE html>
-<html lang="fr" class="scroll-smooth">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mon Assistant IA Multimodal & Connecté</title>
-    
-    <!-- CDN Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+{% extends "base.html" %}
 
-    <!-- Script anti-flash -->
-    <script>
-        if (localStorage.getItem('theme') === 'dark' || 
-            (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
+{% block extra_scripts %}
+<script>
+    let currentSessionId = null;
+    let currentMessages = [];
+    let allSessions = [];
+    let isSearchEnabled = false;
+    let isReasoningEnabled = false;
+
+    const sessionsListDiv = document.getElementById('sessionsList');
+    const messagesArea = document.getElementById('messagesArea');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const conversationTitle = document.getElementById('conversationTitle');
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => (m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'));
+    }
+
+    function addMessageToUI(role, content, scroll = true) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message-bubble ${role === 'user' ? 'user-message' : 'bot-message'}`;
+        if (role === 'user') {
+            msgDiv.textContent = content;
         } else {
-            document.documentElement.classList.remove('dark');
-        }
-    </script>
-</head>
-<!-- h-screen et overflow-hidden ici verrouillent l'écran pour éviter tout défilement global -->
-<body class="bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 transition-colors duration-300 h-screen overflow-hidden flex flex-col md:flex-row">
-
-    <!-- Barre latérale (Sidebar) - Reste fixe à gauche grâce à md:h-screen -->
-    <aside class="w-full md:w-64 h-auto md:h-screen bg-white dark:bg-zinc-900 border-b md:border-b-0 md:border-r border-slate-200/80 dark:border-zinc-800 flex flex-col justify-between p-4 transition-colors duration-300 shrink-0">
-        <!-- Haut de la Sidebar -->
-        <div class="space-y-6 flex flex-col h-full overflow-hidden">
-            <div class="flex items-center space-x-3 shrink-0">
-                <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold">
-                    M
-                </div>
-                <span class="font-semibold text-lg tracking-tight">Studio Multimodal</span>
-            </div>
-            
-            <div class="space-y-3 flex flex-col flex-1 overflow-hidden">
-                <!-- Bouton Créer une discussion -->
-                <button id="btn-new-chat" class="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-all cursor-pointer shadow-sm shrink-0">
-                    <span>➕ Nouvelle discussion</span>
-                </button>
-                
-                <!-- Zone de défilement interne pour l'historique des sessions -->
-                <nav id="sessions-list" class="space-y-1 flex-1 overflow-y-auto pr-1">
-                    <!-- Les sessions de l'historique vont s'afficher ici -->
-                </nav>
-            </div>
-        </div>
-
-        <!-- Bas de la Sidebar : Profil & Changement de Thème -->
-        <div class="pt-4 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between mt-4 md:mt-0 shrink-0">
-            <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-indigo-100 dark:bg-zinc-800 flex items-center justify-center text-xs font-semibold text-indigo-600">
-                    U
-                </div>
-                <div class="text-left">
-                    <p class="text-xs font-semibold">Utilisateur</p>
-                    <p class="text-[10px] text-slate-500 dark:text-zinc-400">Plan Pro</p>
-                </div>
-            </div>
-            
-            <!-- Bouton de bascule de thème -->
-            <button id="theme-toggle" type="button" aria-label="Changer de thème" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 transition-all duration-200 cursor-pointer">
-                <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"></path>
-                </svg>
-                <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 11H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"></path>
-                </svg>
-            </button>
-        </div>
-    </aside>
-
-    <!-- Zone principale de contenu (Bloquée en hauteur à h-screen et overflow-hidden) -->
-    <main class="flex-1 h-screen flex flex-col overflow-hidden">
-        
-        <!-- En-tête de la discussion (shrink-0 l'empêche de s'écraser) -->
-        <header class="h-16 px-6 border-b border-slate-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md flex items-center justify-between transition-colors duration-300 shrink-0">
-            <h1 class="font-medium text-sm flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping"></span>
-                Générateur Multimodal Connecté
-            </h1>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
-                <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-500"></span> Serveur Flask connecté
-            </span>
-        </header>
-
-        <!-- Fenêtre de rendu des messages (SEULE CETTE ZONE DÉFILE !) -->
-        <!-- flex-1 prend tout l'espace vide, et overflow-y-auto ajoute la barre de défilement si nécessaire -->
-        <section id="chat-container" class="flex-1 p-6 space-y-6 overflow-y-auto max-w-4xl w-full mx-auto scrollbar-thin">
-            <!-- Rempli dynamiquement en JS -->
-        </section>
-
-        <!-- Zone de contrôle et de saisie (Fixe en bas grâce à shrink-0) -->
-        <footer class="p-6 border-t border-slate-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-colors duration-300 shrink-0">
-            <div class="max-w-4xl mx-auto space-y-4">
-                
-                <!-- PANNEAU DE CONTRÔLES (Modes & Recherche) -->
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-zinc-800/60">
-                    <div class="flex flex-wrap gap-2">
-                        <button id="btn-mode-text" type="button" class="px-3.5 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 transition-all border shadow-sm bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-900/50 cursor-pointer">
-                            <span>💬</span> Chat Texte
-                        </button>
-                        <button id="btn-mode-image" type="button" class="px-3.5 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 transition-all border border-slate-200/80 dark:border-zinc-800 bg-slate-100/50 hover:bg-slate-200/50 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 text-slate-600 dark:text-zinc-400 cursor-pointer">
-                            <span>🎨</span> Générer Image
-                        </button>
-                        <button id="btn-mode-video" type="button" class="px-3.5 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 transition-all border border-slate-200/80 dark:border-zinc-800 bg-slate-100/50 hover:bg-slate-200/50 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 text-slate-600 dark:text-zinc-400 cursor-pointer">
-                            <span>🎬</span> Générer Vidéo
-                        </button>
-                    </div>
-
-                    <!-- Options de recherche (Visibles uniquement en mode Chat Texte) -->
-                    <div id="search-options-container" class="flex flex-wrap gap-2 transition-all duration-300">
-                        <button id="toggle-web-search" type="button" class="px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer">
-                            <span id="web-search-dot" class="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-zinc-600"></span>
-                            🌐 Recherche Web
-                        </button>
-                        <button id="toggle-deep-search" type="button" class="px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer">
-                            <span id="deep-search-dot" class="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-zinc-600"></span>
-                            🔍 Recherche Approfondie
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Input principal -->
-                <div class="flex items-center space-x-3 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-2xl p-2.5 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
-                    <input id="chat-input" type="text" placeholder="Posez une question ou donnez une consigne..." class="bg-transparent border-none outline-none flex-1 text-sm px-3 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500" />
-                    <button id="btn-send" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-5 py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer">
-                        Envoyer
-                    </button>
-                </div>
-                
-                <p class="text-[10px] text-center text-slate-400 dark:text-zinc-500 shrink-0">
-                    Propulsé par votre moteur d'IA multimodal & connecté • v2.6
-                </p>
-            </div>
-        </footer>
-    </main>
-
-    <!-- Script JavaScript unifié & connecté (Identique et fonctionnel) -->
-    <script>
-        // Variables globales d'état
-        let currentSessionId = null;
-        let currentMode = 'text'; // 'text' | 'image' | 'video'
-        let isWebSearchActive = false;
-        let isDeepSearchActive = false;
-
-        // Éléments DOM
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
-        const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
-
-        const btnModeText = document.getElementById('btn-mode-text');
-        const btnModeImage = document.getElementById('btn-mode-image');
-        const btnModeVideo = document.getElementById('btn-mode-video');
-        const searchOptionsContainer = document.getElementById('search-options-container');
-
-        const toggleWebSearch = document.getElementById('toggle-web-search');
-        const webSearchDot = document.getElementById('web-search-dot');
-        const toggleDeepSearch = document.getElementById('toggle-deep-search');
-        const deepSearchDot = document.getElementById('deep-search-dot');
-
-        const chatInput = document.getElementById('chat-input');
-        const btnSend = document.getElementById('btn-send');
-        const chatContainer = document.getElementById('chat-container');
-        const sessionsList = document.getElementById('sessions-list');
-        const btnNewChat = document.getElementById('btn-new-chat');
-
-        // Styles des boutons de mode
-        const activeStyles = ["bg-indigo-50", "dark:bg-indigo-950/40", "text-indigo-700", "dark:text-indigo-300", "border-indigo-200", "dark:border-indigo-900/50"];
-        const inactiveStyles = ["bg-slate-100/50", "hover:bg-slate-200/50", "dark:bg-zinc-800/50", "dark:hover:bg-zinc-800", "text-slate-600", "dark:text-zinc-400", "border-slate-200/80", "dark:border-zinc-800"];
-
-        // --- 1. INITIALISATION DE L'APPLICATION ---
-        document.addEventListener('DOMContentLoaded', async () => {
-            updateToggleIcon();
-            await loadSessions();
-            if (!currentSessionId) {
-                await createNewSession();
-            }
-        });
-
-        // --- 2. GESTION DU THÈME ---
-        function updateToggleIcon() {
-            if (document.documentElement.classList.contains('dark')) {
-                themeToggleLightIcon.classList.remove('hidden');
-                themeToggleDarkIcon.classList.add('hidden');
-            } else {
-                themeToggleDarkIcon.classList.remove('hidden');
-                themeToggleLightIcon.classList.add('hidden');
+            try {
+                const html = marked.parse(content);
+                msgDiv.innerHTML = `<div class="markdown-content">${html}</div>`;
+                if (typeof hljs !== 'undefined') {
+                    msgDiv.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
+                }
+            } catch(e) {
+                msgDiv.innerHTML = `<div class="markdown-content">${escapeHtml(content)}</div>`;
             }
         }
+        messagesArea.appendChild(msgDiv);
+        if (scroll) scrollToBottom();
+    }
 
-        themeToggleBtn.addEventListener('click', () => {
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-            } else {
-                document.documentElement.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-            }
-            updateToggleIcon();
-        });
+    function scrollToBottom() { messagesArea.scrollTop = messagesArea.scrollHeight; }
 
-        // --- 3. CONTRÔLE DES RECHERCHES CONNECTÉES ---
-        toggleWebSearch.addEventListener('click', () => {
-            isWebSearchActive = !isWebSearchActive;
-            if (isWebSearchActive) {
-                toggleWebSearch.className = "px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm cursor-pointer";
-                webSearchDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse";
-            } else {
-                toggleWebSearch.className = "px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer";
-                webSearchDot.className = "w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-zinc-600";
-            }
-        });
+    let typingDiv = null;
+    function showTyping() {
+        if (typingDiv) return;
+        typingDiv = document.createElement('div');
+        typingDiv.className = 'typing-indicator';
+        typingDiv.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+        messagesArea.appendChild(typingDiv);
+        scrollToBottom();
+    }
+    function hideTyping() {
+        if (typingDiv) { typingDiv.remove(); typingDiv = null; }
+    }
 
-        toggleDeepSearch.addEventListener('click', () => {
-            isDeepSearchActive = !isDeepSearchActive;
-            if (isDeepSearchActive) {
-                toggleDeepSearch.className = "px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm cursor-pointer";
-                deepSearchDot.className = "w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse";
-            } else {
-                toggleDeepSearch.className = "px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer";
-                deepSearchDot.className = "w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-zinc-600";
-            }
-        });
+    function updateToggleButtons() {
+        const searchBtn = document.getElementById('searchToggleBtn');
+        const reasoningBtn = document.getElementById('reasoningToggleBtn');
+        if (searchBtn) searchBtn.classList.toggle('active', isSearchEnabled);
+        if (reasoningBtn) reasoningBtn.classList.toggle('active', isReasoningEnabled);
+    }
 
-        // --- 4. CHANGEMENT DE MODE (Texte / Image / Vidéo) ---
-        function switchMode(mode) {
-            currentMode = mode;
-            [btnModeText, btnModeImage, btnModeVideo].forEach(btn => {
-                btn.classList.remove(...activeStyles);
-                btn.classList.add(...inactiveStyles);
+    async function fetchSessions() {
+        const res = await fetch('/api/sessions');
+        allSessions = await res.json();
+        renderSessionsList();
+        if (allSessions.length === 0) await createNewSession();
+        else if (!currentSessionId) loadSession(allSessions[0].id);
+    }
+
+    function renderSessionsList() {
+        sessionsListDiv.innerHTML = '';
+        if (allSessions.length === 0) {
+            sessionsListDiv.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">Aucune conversation</div>';
+            return;
+        }
+        for (const sess of allSessions) {
+            const div = document.createElement('div');
+            div.className = `session-item ${currentSessionId == sess.id ? 'active' : ''}`;
+            div.innerHTML = `<span class="session-name" data-id="${sess.id}">${escapeHtml(sess.name)}</span>
+                            <button class="delete-session" data-id="${sess.id}"><i class="fas fa-trash-alt"></i></button>`;
+            div.querySelector('.session-name').addEventListener('click', () => loadSession(sess.id));
+            div.querySelector('.delete-session').addEventListener('click', (e) => { e.stopPropagation(); deleteSession(sess.id); });
+            sessionsListDiv.appendChild(div);
+        }
+    }
+
+    async function loadSession(sessionId) {
+        if (currentSessionId == sessionId) return;
+        currentSessionId = sessionId;
+        const res = await fetch(`/api/sessions/${sessionId}/messages`);
+        const data = await res.json();
+        currentMessages = data.messages || [];
+        if (data.model && modelSelect.querySelector(`option[value="${data.model}"]`)) modelSelect.value = data.model;
+        renderMessages();
+        document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
+        const activeItem = document.querySelector(`.session-item .session-name[data-id="${sessionId}"]`)?.parentElement;
+        if (activeItem) activeItem.classList.add('active');
+        const session = allSessions.find(s => s.id == sessionId);
+        conversationTitle.innerText = session ? session.name : 'Conversation';
+    }
+
+    function renderMessages() {
+        messagesArea.innerHTML = '';
+        if (currentMessages.length === 0) {
+            messagesArea.innerHTML = '<div style="text-align:center; margin-top:2rem;"><i class="fas fa-graduation-cap" style="font-size:2rem; color:var(--accent);"></i><h3>Comment puis-je vous aider aujourd’hui ?</h3></div>';
+            return;
+        }
+        for (const msg of currentMessages) addMessageToUI(msg.role, msg.content, false);
+        scrollToBottom();
+    }
+
+    async function sendMessage(messageText = null) {
+        const message = messageText !== null ? messageText : userInput.value.trim();
+        if (!message) return;
+        if (!currentSessionId) {
+            await createNewSession();
+            if (!currentSessionId) return;
+        }
+        addMessageToUI('user', message);
+        if (messageText === null) userInput.value = '';
+        userInput.style.height = 'auto';
+        showTyping();
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: currentSessionId,
+                    message: message,
+                    model: modelSelect.value,
+                    enable_search: isSearchEnabled,
+                    enable_reasoning: isReasoningEnabled
+                })
             });
+            const data = await response.json();
+            hideTyping();
+            if (data.error) addMessageToUI('bot', `❌ Erreur : ${data.error}`);
+            else addMessageToUI('bot', data.reply);
+            await fetchSessions();
+            if (data.conversation_name) conversationTitle.innerText = data.conversation_name;
+            await loadSession(currentSessionId);
+        } catch (err) {
+            hideTyping();
+            addMessageToUI('bot', `❌ Erreur réseau : ${err.message}`);
+        }
+        if (messageText === null) userInput.focus();
+    }
 
-            if (mode === 'text') {
-                searchOptionsContainer.classList.remove('hidden');
-                btnModeText.classList.remove(...inactiveStyles);
-                btnModeText.classList.add(...activeStyles);
-                chatInput.placeholder = "Posez une question ou donnez une consigne...";
-                btnSend.textContent = "Envoyer";
+    async function createNewSession() {
+        const res = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: null }) });
+        const data = await res.json();
+        await fetchSessions();
+        if (data.session_id) loadSession(data.session_id);
+    }
+
+    async function deleteSession(sessionId) {
+        if (!confirm('Supprimer cette conversation ?')) return;
+        await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+        if (currentSessionId == sessionId) {
+            currentSessionId = null;
+            messagesArea.innerHTML = '<div style="text-align:center; margin-top:2rem;"><i class="fas fa-graduation-cap"></i><h3>Conversation supprimée</h3></div>';
+        }
+        await fetchSessions();
+        if (allSessions.length > 0 && !currentSessionId) loadSession(allSessions[0].id);
+    }
+
+    // ---------- GÉNÉRATION D'IMAGE ----------
+    document.getElementById('imageGenBtn').addEventListener('click', async () => {
+        const prompt = userInput.value.trim();
+        if (!prompt) {
+            alert("Veuillez décrire l'image dans le champ de texte.");
+            return;
+        }
+        showTyping();
+        try {
+            const response = await fetch('/api/generate-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt })
+            });
+            const data = await response.json();
+            hideTyping();
+            if (data.image_url) {
+                addMessageToUI('bot', `🎨 **Image générée** :\n\n![Image](${data.image_url})`);
             } else {
-                searchOptionsContainer.classList.add('hidden');
-                if (mode === 'image') {
-                    btnModeImage.classList.remove(...inactiveStyles);
-                    btnModeImage.classList.add(...activeStyles);
-                    chatInput.placeholder = "Décrivez précisément l'image à générer...";
-                    btnSend.textContent = "Générer";
-                } else if (mode === 'video') {
-                    btnModeVideo.classList.remove(...inactiveStyles);
-                    btnModeVideo.classList.add(...activeStyles);
-                    chatInput.placeholder = "Décrivez précisément la vidéo à générer (via Replicate)...";
-                    btnSend.textContent = "Générer";
-                }
+                addMessageToUI('bot', `❌ Erreur : ${data.error || "Impossible de générer l'image"}`);
             }
-            chatInput.focus();
+        } catch (err) {
+            hideTyping();
+            addMessageToUI('bot', `❌ Erreur réseau : ${err.message}`);
         }
+    });
 
-        btnModeText.addEventListener('click', () => switchMode('text'));
-        btnModeImage.addEventListener('click', () => switchMode('image'));
-        btnModeVideo.addEventListener('click', () => switchMode('video'));
-
-        // --- 5. GESTION DE L'HISTORIQUE ET DES SESSIONS ---
-        async function loadSessions() {
-            try {
-                const res = await fetch('/api/sessions');
-                const sessions = await res.json();
-                sessionsList.innerHTML = '';
-                
-                sessions.forEach(session => {
-                    const isActive = String(session.id) === String(currentSessionId);
-                    const activeClass = isActive 
-                        ? 'bg-slate-100 dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-semibold' 
-                        : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800/50';
-                    
-                    const itemHTML = `
-                        <div class="flex items-center justify-between group px-3 py-2 rounded-xl text-sm transition-all ${activeClass}">
-                            <button onclick="switchSession('${session.id}')" class="flex-1 text-left truncate cursor-pointer">
-                                💬 ${session.name}
-                            </button>
-                            <button onclick="deleteSession('${session.id}')" class="opacity-0 group-hover:opacity-100 text-xs text-red-500 hover:text-red-700 transition-opacity p-1 cursor-pointer" title="Supprimer">
-                                🗑️
-                            </button>
-                        </div>
-                    `;
-                    sessionsList.insertAdjacentHTML('beforeend', itemHTML);
-                });
-
-                if (sessions.length > 0 && !currentSessionId) {
-                    await switchSession(sessions[0].id);
-                }
-            } catch (err) {
-                console.error("Erreur chargement des sessions:", err);
+    // ---------- GÉNÉRATION DE VIDÉO ----------
+    document.getElementById('videoGenBtn').addEventListener('click', async () => {
+        const prompt = userInput.value.trim();
+        if (!prompt) {
+            alert("Veuillez décrire la vidéo dans le champ de texte.");
+            return;
+        }
+        showTyping();
+        addMessageToUI('bot', `⏳ Génération de la vidéo en cours... (peut prendre jusqu'à 2 minutes)`);
+        try {
+            const response = await fetch('/api/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt })
+            });
+            const data = await response.json();
+            hideTyping();
+            if (data.video_url) {
+                addMessageToUI('bot', `🎬 **Vidéo générée** :\n\n<video controls src="${data.video_url}" style="max-width:100%; border-radius:0.5rem;"></video>`);
+            } else {
+                addMessageToUI('bot', `❌ Erreur : ${data.error || "Impossible de générer la vidéo"}`);
             }
+        } catch (err) {
+            hideTyping();
+            addMessageToUI('bot', `❌ Erreur réseau : ${err.message}`);
         }
+    });
 
-        async function createNewSession() {
-            try {
-                const res = await fetch('/api/sessions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: "Nouvelle discussion" })
-                });
-                const data = await res.json();
-                currentSessionId = data.session_id;
-                await loadSessions();
-                clearChatAndWelcome();
-            } catch (err) {
-                console.error("Erreur création session:", err);
-            }
-        }
+    // Suggestions
+    document.querySelectorAll('.suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', () => sendMessage(chip.getAttribute('data-suggestion')));
+    });
 
-        async function switchSession(id) {
-            currentSessionId = id;
-            await loadSessions();
-            
-            try {
-                const res = await fetch(`/api/sessions/${id}/messages`);
-                const data = await res.json();
-                chatContainer.innerHTML = '';
-                appendSystemGreeting();
+    document.getElementById('searchToggleBtn').addEventListener('click', () => { isSearchEnabled = !isSearchEnabled; updateToggleButtons(); });
+    document.getElementById('reasoningToggleBtn').addEventListener('click', () => { isReasoningEnabled = !isReasoningEnabled; updateToggleButtons(); });
+    sendBtn.addEventListener('click', () => sendMessage());
+    userInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+    newChatBtn.addEventListener('click', createNewSession);
+    userInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 100) + 'px'; });
 
-                data.messages.forEach(msg => {
-                    if (msg.role === 'user') {
-                        appendUserMessage(msg.content);
-                    } else {
-                        appendAIMessage(msg.content);
-                    }
-                });
-            } catch (err) {
-                console.error("Erreur lors du chargement des messages:", err);
-            }
-        }
-
-        async function deleteSession(id) {
-            if (!confirm("Voulez-vous vraiment supprimer cette conversation ?")) return;
-            try {
-                const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-                if (res.ok) {
-                    if (String(currentSessionId) === String(id)) {
-                        currentSessionId = null;
-                    }
-                    await loadSessions();
-                    if (!currentSessionId) {
-                        await createNewSession();
-                    }
-                }
-            } catch (err) {
-                console.error("Erreur suppression:", err);
-            }
-        }
-
-        btnNewChat.addEventListener('click', createNewSession);
-
-        // --- 6. GESTION DES MESSAGES ET DES APPELS API ---
-        function clearChatAndWelcome() {
-            chatContainer.innerHTML = '';
-            appendSystemGreeting();
-        }
-
-        function appendSystemGreeting() {
-            const welcomeHTML = `
-                <div class="flex items-start space-x-4 max-w-3xl">
-                    <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                        A
-                    </div>
-                    <div class="bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 p-4 rounded-2xl shadow-sm transition-all duration-300">
-                        <p class="text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
-                            Bonjour ! Je suis connecté et prêt. Posez-moi vos questions, ou utilisez les boutons ci-dessus pour générer du contenu multimédia.
-                        </p>
-                    </div>
-                </div>
-            `;
-            chatContainer.insertAdjacentHTML('beforeend', welcomeHTML);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        function appendUserMessage(text) {
-            const messageHTML = `
-                <div class="flex items-start space-x-4 max-w-3xl ml-auto justify-end">
-                    <div class="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 p-4 rounded-2xl max-w-xl transition-all duration-300">
-                        <p class="text-sm leading-relaxed">${escapeHTML(text)}</p>
-                    </div>
-                    <div class="w-8 h-8 rounded-lg bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 flex items-center justify-center font-bold text-sm shrink-0">
-                        U
-                    </div>
-                </div>
-            `;
-            chatContainer.insertAdjacentHTML('beforeend', messageHTML);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        function appendAIMessage(content) {
-            let renderedContent = '';
-
-            if (content.includes('/api/proxy-image')) {
-                renderedContent = `
-                    <div class="space-y-3">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/60 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">IMAGE RENDUE</span>
-                        <div class="w-full aspect-video rounded-xl overflow-hidden bg-slate-100 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 shadow-sm">
-                            <img src="${content}" alt="Image générée" class="w-full h-full object-contain" />
-                        </div>
-                    </div>
-                `;
-            } 
-            else if (content.includes('/api/proxy-video')) {
-                renderedContent = `
-                    <div class="space-y-3">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-950/60 text-[10px] font-bold text-teal-600 dark:text-teal-400">VIDÉO RENDUE</span>
-                        <div class="w-full aspect-video rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 shadow-sm">
-                            <video src="${content}" controls class="w-full h-full object-contain"></video>
-                        </div>
-                    </div>
-                `;
-            } 
-            else {
-                const formatted = formatMarkdown(content);
-                renderedContent = `<div class="text-sm leading-relaxed text-slate-700 dark:text-zinc-300 space-y-2">${formatted}</div>`;
-            }
-
-            const messageHTML = `
-                <div class="flex items-start space-x-4 max-w-3xl">
-                    <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                        A
-                    </div>
-                    <div class="bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 p-4 rounded-2xl shadow-sm transition-all duration-300 w-full">
-                        ${renderedContent}
-                    </div>
-                </div>
-            `;
-            chatContainer.insertAdjacentHTML('beforeend', messageHTML);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        function appendLoadingIndicator() {
-            const id = 'loading-' + Date.now();
-            const loadingHTML = `
-                <div id="${id}" class="flex items-start space-x-4 max-w-3xl">
-                    <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                        A
-                    </div>
-                    <div class="bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 p-4 rounded-2xl shadow-sm w-full flex items-center space-x-3">
-                        <div class="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin"></div>
-                        <span class="text-xs text-slate-500 dark:text-zinc-400">Génération en cours, merci de patienter...</span>
-                    </div>
-                </div>
-            `;
-            chatContainer.insertAdjacentHTML('beforeend', loadingHTML);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            return id;
-        }
-
-        function removeLoadingIndicator(id) {
-            const indicator = document.getElementById(id);
-            if (indicator) indicator.remove();
-        }
-
-        function appendErrorMessage(errorMsg) {
-            const errorHTML = `
-                <div class="flex items-start space-x-4 max-w-3xl">
-                    <div class="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                        ⚠️
-                    </div>
-                    <div class="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 p-4 rounded-2xl shadow-sm w-full">
-                        <p class="text-xs text-red-600 dark:text-red-400 font-medium">Une erreur est survenue :</p>
-                        <p class="text-sm text-red-700 dark:text-red-300 mt-1">${escapeHTML(errorMsg)}</p>
-                    </div>
-                </div>
-            `;
-            chatContainer.insertAdjacentHTML('beforeend', errorHTML);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        // --- 7. LOGIQUE D'ENVOI CONNECTÉE AU BACKEND ---
-        async function handleSend() {
-            const prompt = chatInput.value.trim();
-            if (!prompt) return;
-
-            if (!currentSessionId) {
-                await createNewSession();
-            }
-
-            appendUserMessage(prompt);
-            chatInput.value = '';
-
-            const loadingId = appendLoadingIndicator();
-
-            try {
-                if (currentMode === 'text') {
-                    const res = await fetch('/api/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            message: prompt,
-                            session_id: currentSessionId,
-                            enable_search: isWebSearchActive,
-                            enable_reasoning: isDeepSearchActive,
-                            length: 'medium'
-                        })
-                    });
-                    const data = await res.json();
-                    removeLoadingIndicator(loadingId);
-
-                    if (data.error) {
-                        appendErrorMessage(data.error);
-                    } else {
-                        appendAIMessage(data.reply);
-                        await loadSessions();
-                    }
-                } 
-                else if (currentMode === 'image') {
-                    const res = await fetch('/api/generate-image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: prompt })
-                    });
-                    const data = await res.json();
-                    removeLoadingIndicator(loadingId);
-
-                    if (data.error) {
-                        appendErrorMessage(data.error);
-                    } else {
-                        appendAIMessage(data.image_url);
-                    }
-                } 
-                else if (currentMode === 'video') {
-                    const res = await fetch('/api/generate-video', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: prompt })
-                    });
-                    const data = await res.json();
-                    removeLoadingIndicator(loadingId);
-
-                    if (data.error) {
-                        appendErrorMessage(data.error);
-                    } else {
-                        appendAIMessage(data.video_url);
-                    }
-                }
-            } catch (err) {
-                removeLoadingIndicator(loadingId);
-                appendErrorMessage("Impossible de joindre le serveur Flask. Vérifiez qu'il tourne correctement.");
-                console.error(err);
-            }
-        }
-
-        btnSend.addEventListener('click', handleSend);
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleSend();
-        });
-
-        // --- 8. PETITS UTILS DE FORMATAGE ---
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-            );
-        }
-
-        function formatMarkdown(text) {
-            return escapeHTML(text)
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/\n/g, '<br>');
-        }
-    </script>
-</body>
-</html>
+    updateToggleButtons();
+    fetchSessions();
+</script>
+{% endblock %}
