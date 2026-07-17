@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import render_template, redirect, url_for, flash, request, Blueprint
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -33,10 +33,12 @@ def register():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+        
         if User.query.filter((User.username == username) | (User.email == email)).first():
-            flash('Un compte existe déjà.', 'danger')
+            flash('Un compte existe déjà avec ce nom d\'utilisateur ou cet e-mail.', 'danger')
         else:
-            hashed = generate_password_hash(password, method='pbkdf2:sha256')
+            # Correction : Laisse Werkzeug choisir sa méthode de hachage moderne par défaut
+            hashed = generate_password_hash(password)
             new_user = User(username=username, email=email, password_hash=hashed)
             db.session.add(new_user)
             db.session.commit()
@@ -63,7 +65,8 @@ def forgot_password():
         if user:
             token = secrets.token_urlsafe(32)
             user.reset_token = token
-            user.reset_token_expiry = datetime.utcnow() + timedelta(hours=1)
+            # Correction : Utilisation d'une date de fin consciente du fuseau horaire
+            user.reset_token_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
             db.session.commit()
             
             print(f"\n{'='*60}")
@@ -84,8 +87,17 @@ def forgot_password():
 def reset_password(token):
     user = User.query.filter_by(reset_token=token).first()
     
-    if not user or not user.reset_token_expiry or user.reset_token_expiry < datetime.utcnow():
-        flash('Ce lien est invalide ou a expiré.', 'danger')
+    if not user or not user.reset_token_expiry:
+        flash('Ce lien est invalide.', 'danger')
+        return redirect(url_for('auth.forgot_password'))
+        
+    # Correction : Gestion intelligente des comparaisons de fuseaux horaires (Naive vs Aware)
+    now = datetime.now(timezone.utc)
+    if user.reset_token_expiry.tzinfo is None:
+        now = now.replace(tzinfo=None) # Aligne sur une date naïve si ta DB stocke ainsi
+
+    if user.reset_token_expiry < now:
+        flash('Ce lien a expiré.', 'danger')
         return redirect(url_for('auth.forgot_password'))
     
     if request.method == 'POST':
@@ -97,7 +109,8 @@ def reset_password(token):
         elif len(password) < 6:
             flash('Le mot de passe doit contenir au moins 6 caractères.', 'danger')
         else:
-            user.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
+            # Correction : Hachage sans méthode obsolète forcée
+            user.password_hash = generate_password_hash(password)
             user.reset_token = None
             user.reset_token_expiry = None
             db.session.commit()

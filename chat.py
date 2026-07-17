@@ -3,23 +3,27 @@ import os
 import logging
 import time
 import json
+import requests
+from datetime import datetime
 from flask import Blueprint, request, jsonify, render_template
 from flask_login import login_required, current_user
-import requests
 from config import Config
 from models import db, Conversation, Message
 from urllib.parse import quote
-
+from duckduckgo_search import DDGS
+from bs4 import BeautifulSoup
 
 # Configuration du logging
 logging.basicConfig(level=logging.DEBUG)
 
 chat = Blueprint('chat', __name__)
 
-# ========== FONCTIONS DE RECHERCHE WEB ==========
-from duckduckgo_search import DDGS
-from bs4 import BeautifulSoup
+# ========== CONSTANTES POUR AGNES AI ==========
+AGNES_API_BASE = "https://apihub.agnes-ai.com"
+AGNES_VIDEO_URL = f"{AGNES_API_BASE}/v1/videos"
+AGNES_STATUS_URL = f"{AGNES_API_BASE}/agnesapi"  # Pour interroger le statut
 
+# ========== FONCTIONS DE RECHERCHE WEB ==========
 def search_web(query: str, max_results: int = 3) -> list:
     results = []
     try:
@@ -33,7 +37,6 @@ def search_web(query: str, max_results: int = 3) -> list:
 
 def extract_page_content(url: str, max_chars: int = 2000) -> str:
     try:
-        # Ajout d'un User-Agent pour éviter d'être banni/bloqué par les sites web
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
@@ -49,6 +52,7 @@ def extract_page_content(url: str, max_chars: int = 2000) -> str:
         logging.error(f"Erreur extraction de la page {url}: {e}")
         return ""
 
+# ========== ROUTES ==========
 @chat.route('/')
 @login_required
 def index():
@@ -118,7 +122,6 @@ def chat_api():
     enable_search = data.get('enable_search', False)
     enable_reasoning = data.get('enable_reasoning', False)
 
-    # Sécurisation du typage de session_id (conversion de str vers int)
     try:
         session_id = int(session_id)
     except (TypeError, ValueError):
@@ -126,12 +129,10 @@ def chat_api():
 
     conv = Conversation.query.filter_by(id=session_id, user_id=current_user.id).first_or_404()
     
-    # Mise à jour du modèle si changé
     if model_id and model_id != conv.model_id:
         conv.model_id = model_id
         db.session.commit()
     
-    # Mise à jour de la longueur si changée
     if length_mode != conv.response_length:
         conv.response_length = length_mode
         db.session.commit()
@@ -142,7 +143,6 @@ def chat_api():
             conv.name = conv.name[:35] + "..."
         db.session.commit()
 
-    # Récupérer les paramètres de longueur
     length_config = Config.RESPONSE_LENGTHS.get(length_mode, Config.RESPONSE_LENGTHS[Config.DEFAULT_LENGTH])
 
     search_results_text = None
@@ -161,7 +161,6 @@ def chat_api():
 
     history = [{"role": m.role, "content": m.content} for m in conv.messages]
     
-    # System prompt basé sur la longueur choisie
     system_prompt = length_config["system_prompt"]
     
     if enable_search and search_results_text:
@@ -193,9 +192,6 @@ def chat_api():
         "frequency_penalty": Config.FREQUENCY_PENALTY,
         "presence_penalty": Config.PRESENCE_PENALTY,
     }
-    
-    # Note : Le paramètre custom "reasoning" a été retiré ici pour éviter de déclencher des erreurs 400 Bad Request.
-    # OpenRouter gère automatiquement le retour des tokens de raisonnement pour le modèle DeepSeek R1.
 
     try:
         response = requests.post(Config.OPENROUTER_URL, headers=headers, json=payload, timeout=120)
@@ -209,7 +205,6 @@ def chat_api():
         message_data = choices[0].get('message', {})
         final_answer = message_data.get('content', '')
 
-        # Extraction correcte du raisonnement selon le format OpenRouter (clé 'reasoning' ou 'reasoning_content')
         reasoning = message_data.get('reasoning') or message_data.get('reasoning_content') or ""
 
         if enable_reasoning and reasoning:
@@ -223,25 +218,38 @@ def chat_api():
         new_user_msg = Message(role='user', content=user_message, conversation=conv)
         new_ai_msg = Message(role='assistant', content=ai_message, conversation=conv)
         db.session.add_all([new_user_msg, new_ai_msg])
-        conv.updated_at = db.func.now()
+        conv.updated_at = datetime.utcnow()
         db.session.commit()
         return jsonify({"reply": ai_message, "conversation_name": conv.name})
     except Exception as e:
         logging.exception("Erreur lors de l'appel à l'API de discussion")
         return jsonify({"error": str(e)}), 500
 
-# ========== GÉNÉRATION D'IMAGES ==========
+# ========== GÉNÉRATION D'IMAGES (Pollinations.ai) ==========
 @chat.route('/api/generate-image', methods=['POST'])
 @login_required
 def generate_image():
     data = request.get_json()
     prompt = data.get('prompt')
+    session_id = data.get('session_id')
     if not prompt:
         return jsonify({"error": "prompt requis"}), 400
+    if not session_id:
+        return jsonify({"error": "session_id requis"}), 400
+
+    conv = Conversation.query.filter_by(id=session_id, user_id=current_user.id).first_or_404()
 
     try:
         original_url = f"https://image.pollinations.ai/prompt/{quote(prompt)}"
         proxied_url = f"/api/proxy-image?url={quote(original_url)}"
+        
+        # Sauvegarde des messages dans l'historique
+        user_msg = Message(role='user', content=f"/image {prompt}", conversation=conv)
+        ai_msg = Message(role='assistant', content=f"![Image générée]({proxied_url})", conversation=conv)
+        db.session.add_all([user_msg, ai_msg])
+        conv.updated_at = datetime.utcnow()
+        db.session.commit()
+        
         return jsonify({"image_url": proxied_url})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -274,49 +282,107 @@ def proxy_video():
     except Exception as e:
         logging.error(f"Erreur proxy vidéo: {e}")
         return f"Erreur lors du téléchargement: {e}", 500
-
-# ========== GÉNÉRATION DE VIDÉO (Utilise désormais Replicate) ==========
 @chat.route('/api/generate-video', methods=['POST'])
 @login_required
 def generate_video():
     data = request.get_json()
     prompt = data.get('prompt')
+    session_id = data.get('session_id')
     if not prompt:
         return jsonify({"error": "prompt requis"}), 400
+    if not session_id:
+        return jsonify({"error": "session_id requis"}), 400
 
-    # Vérification de la présence du token Replicate
-    replicate_token = os.environ.get("REPLICATE_API_TOKEN") or getattr(Config, 'REPLICATE_API_TOKEN', None)
-    if not replicate_token:
-        return jsonify({"error": "Le jeton REPLICATE_API_TOKEN est manquant dans l'environnement."}), 500
+    conv = Conversation.query.filter_by(id=session_id, user_id=current_user.id).first_or_404()
+
+    api_key = Config.AGNES_API_KEY
+    if not api_key:
+        logging.error("❌ Clé API Agnes manquante")
+        return jsonify({"error": "Clé API Agnes manquante. Veuillez configurer AGNES_API_KEY dans .env"}), 500
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    # 1. Création de la tâche
+    payload = {
+        "model": "agnes-video-v2.0",
+        "prompt": prompt,
+        "height": 480,
+        "width": 640,
+        "num_frames": 25,
+        "frame_rate": 8
+    }
 
     try:
-        logging.info(f"Génération vidéo demandée avec Replicate pour le prompt : {prompt}")
-        
-        # Appel du modèle de génération vidéo via Replicate (ex: Zeroscope, très rapide et idéal pour le dev)
-        # Assure-toi que REPLICATE_API_TOKEN est bien exporté dans ton environnement système.
-        output = replicate.run(
-            "anotherjesse/zeroscope-v2-xl:9f74767d61211111111111111111111111111111111111111111111111111111",
-            input={
-                "prompt": prompt,
-                "num_frames": 24,
-                "fps": 8,
-                "width": 576,
-                "height": 320
-            }
-        )
+        logging.info(f"🎬 Création d'une tâche vidéo Agnes pour : {prompt}")
+        # Timeout augmenté à 60 secondes pour la création
+        response = requests.post(AGNES_VIDEO_URL, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        task_data = response.json()
+        logging.info(f"📦 Réponse brute de création : {task_data}")
 
-        # Replicate retourne généralement une liste d'URLs, nous prenons la première
-        if isinstance(output, list) and len(output) > 0:
-            direct_url = output[0]
-        else:
-            direct_url = output
+        video_id = task_data.get('video_id') or task_data.get('task_id')
+        if not video_id:
+            logging.error(f"❌ Aucun ID trouvé dans la réponse : {task_data}")
+            return jsonify({"error": "Impossible de récupérer l'ID de la tâche."}), 500
 
-        if not direct_url:
-            raise ValueError("Aucune URL vidéo n'a pu être récupérée de Replicate.")
+        logging.info(f"✅ Tâche créée avec succès. ID : {video_id}")
 
-        proxied_url = f"/api/proxy-video?url={quote(direct_url, safe='')}"
-        return jsonify({"video_url": proxied_url})
+        # 2. Polling pour récupérer le résultat
+        max_attempts = 60  # 60 * 5s = 300s max (5 minutes)
+        attempt = 0
+        video_url = None
 
+        while attempt < max_attempts:
+            time.sleep(5)
+            attempt += 1
+            logging.info(f"🔄 Tentative de récupération {attempt}/{max_attempts}")
+
+            status_url = f"{AGNES_STATUS_URL}?video_id={video_id}"
+            try:
+                status_response = requests.get(status_url, headers=headers, timeout=30)
+                if status_response.status_code == 200:
+                    result_data = status_response.json()
+                    status = result_data.get('status')
+                    logging.info(f"📊 Statut : {status}")
+                    
+                    if status == 'succeeded':
+                        video_url = result_data.get('video_url') or result_data.get('output')
+                        if video_url:
+                            logging.info(f"🎬 Vidéo récupérée : {video_url}")
+                            break
+                    elif status in ['failed', 'error']:
+                        error_msg = result_data.get('error', 'Erreur inconnue')
+                        logging.error(f"❌ Échec de la génération : {error_msg}")
+                        return jsonify({"error": f"Échec de la génération : {error_msg}"}), 500
+                else:
+                    logging.warning(f"⚠️ Statut HTTP inattendu : {status_response.status_code}")
+            except requests.exceptions.Timeout:
+                logging.warning("⏰ Timeout lors du polling, on réessaie...")
+            except Exception as e:
+                logging.warning(f"⚠️ Erreur lors du polling : {e}")
+
+        if not video_url:
+            logging.error("❌ Aucune vidéo récupérée après le polling")
+            return jsonify({"error": "La génération vidéo a pris trop de temps ou a échoué."}), 500
+
+        # 3. Sauvegarde des messages
+        user_msg = Message(role='user', content=f"/video {prompt}", conversation=conv)
+        ai_msg = Message(role='assistant', content=f"🎥 [Vidéo générée avec Agnes AI]({video_url})", conversation=conv)
+        db.session.add_all([user_msg, ai_msg])
+        conv.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({"video_url": video_url})
+
+    except requests.exceptions.Timeout:
+        logging.exception("⏰ Timeout lors de la création de la tâche")
+        return jsonify({"error": "Le service Agnes AI met trop de temps à répondre. Veuillez réessayer."}), 504
+    except requests.exceptions.RequestException as e:
+        logging.exception("❌ Erreur réseau lors de l'appel à Agnes AI")
+        return jsonify({"error": f"Erreur de communication avec Agnes AI : {str(e)}"}), 500
     except Exception as e:
-        logging.exception("Échec de la génération de vidéo via Replicate")
-        return jsonify({"error": f"La génération vidéo a échoué : {str(e)}"}), 500
+        logging.exception("❌ Erreur inattendue lors de la génération vidéo")
+        return jsonify({"error": f"Erreur interne : {str(e)}"}), 500

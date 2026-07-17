@@ -1,52 +1,33 @@
-{% extends "base.html" %}
-{% block title %}Inscription - HighFive AI{% endblock %}
+{% extends "base_auth.html" %}
+
+{% block title %}Inscription{% endblock %}
+
 {% block content %}
-<div class="flex-1 flex items-center justify-center p-4 min-h-screen bg-[#09090b]">
-    <div class="w-full max-w-md bg-[#121214] border border-zinc-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
-        <!-- Décorations ambrées en arrière-plan -->
-        <div class="absolute -top-16 -left-16 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl"></div>
+<h3 class="text-xl font-bold text-white text-center mb-2">Créer un compte</h3>
+<p class="text-zinc-500 text-center text-sm mb-6">Rejoignez la communauté HighFive AI</p>
 
-        <div class="text-center mb-8 relative">
-            <div class="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center text-zinc-950 font-black text-lg mx-auto mb-4">H5</div>
-            <h3 class="text-2xl font-bold text-white">Rejoignez-nous</h3>
-            <p class="text-zinc-500 text-xs mt-1.5">Créez vos accès pour commencer à utiliser l'IA</p>
-        </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, msg in messages %}
-                    <div class="mb-4 p-3.5 rounded-xl border text-xs font-semibold {{ 'bg-red-500/10 border-red-500/20 text-red-400' if category == 'danger' else 'bg-amber-500/10 border-amber-500/20 text-amber-400' }}">
-                        {{ msg }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <form method="POST" class="space-y-5 relative">
-            <div>
-                <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">Nom d'utilisateur</label>
-                <input type="text" name="username" required placeholder="Votre pseudonyme unique..."
-                       class="w-full bg-[#18181b] border border-zinc-700/60 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition">
-            </div>
-            <div>
-                <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">Adresse Email</label>
-                <input type="email" name="email" required placeholder="nom@exemple.com"
-                       class="w-full bg-[#18181b] border border-zinc-700/60 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition">
-            </div>
-            <div>
-                <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">Mot de passe</label>
-                <input type="password" name="password" required placeholder="Minimum 6 caractères..."
-                       class="w-full bg-[#18181b] border border-zinc-700/60 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition">
-            </div>
-            <button type="submit" 
-                    class="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl py-3.5 transition duration-150 transform hover:scale-[1.01] shadow-lg shadow-amber-500/15">
-                S'enregistrer
-            </button>
-        </form>
-
-        <p class="text-center text-xs text-zinc-500 mt-6">
-            Déjà inscrit ? <a href="{{ url_for('auth.login') }}" class="text-amber-400 hover:text-amber-300 font-semibold transition">Se connecter</a>
-        </p>
+<form method="POST" class="space-y-4">
+    <div>
+        <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1">Nom d'utilisateur</label>
+        <input type="text" name="username" required placeholder="Votre pseudonyme..."
+               class="w-full bg-[#18181b] border border-zinc-700/60 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition">
     </div>
-</div>
+    <div>
+        <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1">Email</label>
+        <input type="email" name="email" required placeholder="nom@exemple.com"
+               class="w-full bg-[#18181b] border border-zinc-700/60 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition">
+    </div>
+    <div>
+        <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1">Mot de passe</label>
+        <input type="password" name="password" required minlength="6" placeholder="Minimum 6 caractères..."
+               class="w-full bg-[#18181b] border border-zinc-700/60 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/10 transition">
+    </div>
+    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl py-3.5 transition duration-150 transform hover:scale-[1.01] shadow-lg shadow-amber-500/15">
+        S'enregistrer
+    </button>
+</form>
+
+<p class="text-center text-xs text-zinc-500 mt-6">
+    Déjà inscrit ? <a href="{{ url_for('auth.login') }}" class="text-amber-400 hover:text-amber-300 font-semibold transition">Se connecter</a>
+</p>
 {% endblock %}

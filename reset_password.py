@@ -20,7 +20,8 @@ with app.app_context():
 
     user = User.query.filter_by(username=username).first()
     if user:
-        user.password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+        # Correction : plus de méthode obsolète
+        user.password_hash = generate_password_hash(new_password)
         db.session.commit()
         print(f"\n✅ Mot de passe de '{username}' mis à jour avec succès !")
     else:

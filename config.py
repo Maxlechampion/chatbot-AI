@@ -4,11 +4,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     SECRET_KEY = os.environ.get('SECRET_KEY')
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'instance', 'app.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
     OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+    # Nouvelle clé pour Agnes AI
+    AGNES_API_KEY = os.environ.get('AGNES_API_KEY')
 
     # Modèles optimisés pour les réponses longues
     FREE_MODELS = [
