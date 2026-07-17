@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}HighFive AI – Authentification{% endblock %}</title>
+    <title>{% block title %}HIGHFIVE AI – Authentification{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -16,11 +16,11 @@
         
         <div class="text-center mb-6 relative">
             <div class="flex items-center justify-center gap-3 mb-2">
-                <img src="{{ url_for('static', filename='images/drapeau_benin.jpg') }}" alt="Drapeau Bénin" class="w-10 h-10 rounded-full border border-zinc-700 object-cover">
+                <img src="{{ url_for('static', filename='images/drapeau_benin.jpg') }}" alt="Bénin" class="w-10 h-10 rounded-full border border-zinc-700 object-cover">
                 <span class="text-2xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">HIGHFIVE AI</span>
                 <img src="{{ url_for('static', filename='images/agodjie.jpg') }}" alt="Agodjié" class="w-10 h-10 rounded-full border border-zinc-700 object-cover">
             </div>
-            <p class="text-zinc-500 text-xs mt-1">IA Béninoise</p>
+            <p class="text-zinc-500 text-xs mt-1">Université de Codage</p>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}

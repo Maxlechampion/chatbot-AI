@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}HighFive AI – Assistant SONIBANK{% endblock %}
+{% block title %}HIGHFIVE AI – Assistant Coding{% endblock %}
 
 {% block content %}
 <div class="chat-container flex flex-col h-full">
@@ -20,10 +20,10 @@
     <div id="chat-container" class="chat-messages flex-1 overflow-y-auto custom-scrollbar">
         <div id="messages-wrapper" class="flex flex-col gap-4">
             <div id="empty-state" class="welcome-container">
-                <div class="icon">💬</div>
-                <h2>Conseiller SONIBANK</h2>
-                <p>Je suis votre conseiller virtuel. Je suis là pour vous aider avec toutes vos questions bancaires : comptes, crédits, cartes (Bukata, Asusu, So'cash), e-Banking, ou toute demande SAV.</p>
-                <p class="text-xs text-[#5a7a9e] mt-2">Comment puis-je vous assister aujourd'hui ?</p>
+                <div class="icon">💻</div>
+                <h2>HIGHFIVE Coding University</h2>
+                <p>Je suis votre assistant virtuel HIGHFIVE. Je suis là pour vous aider avec toutes vos questions de programmation, apprentissage du code, projets, exercices, ou toute demande liée à la formation en développement web et IA.</p>
+                <p class="text-xs text-[#5a7a9e] mt-2">Comment puis-je vous aider à progresser aujourd'hui ? Je peux vous aider dans tous les domaines</p>
             </div>
         </div>
     </div>
@@ -63,13 +63,15 @@
                 <button type="button" class="toggle-btn text-[#1a6df5] hover:border-[#1a6df5]" id="image-btn" title="Générer une image (commande /image)">
                     <i class="fa-regular fa-image mr-1"></i> Image
                 </button>
-                
+                <button type="button" class="toggle-btn text-[#e74c3c] hover:border-[#e74c3c]" id="video-btn" title="Générer une vidéo (commande /video)">
+                    <i class="fa-regular fa-film mr-1"></i> Vidéo
+                </button>
             </div>
         </div>
 
         <!-- Formulaire d'envoi -->
         <form id="chat-form" class="chat-form">
-            <input type="text" id="user-input" name="message" placeholder="Posez votre question..." autocomplete="off" required>
+            <input type="text" id="user-input" name="message" placeholder="Posez votre question sur le code..." autocomplete="off" required>
             <button type="submit" id="submit-btn" class="send-btn" title="Envoyer">
                 <i class="fa-regular fa-paper-plane"></i>
             </button>

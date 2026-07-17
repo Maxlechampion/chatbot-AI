@@ -426,4 +426,230 @@ body {
         max-width: 90%;
         font-size: 0.9rem;
     }
+    /* ============================================================
+   RESPONSIVE - AMÉLIORATIONS MOBILE
+   ============================================================ */
+
+/* ===== BREAKPOINT XS (très petits écrans < 480px) ===== */
+@media (max-width: 480px) {
+    .brand {
+        font-size: 0.9rem !important;
+    }
+    .chat-header {
+        padding: 0.6rem 0.8rem !important;
+    }
+    .chat-messages {
+        padding: 0.6rem 0.5rem !important;
+        gap: 0.5rem !important;
+    }
+    .chat-input-area {
+        padding: 0.6rem 0.6rem !important;
+    }
+    .message-wrapper.user .bubble,
+    .message-wrapper.assistant .bubble {
+        max-width: 92% !important;
+        font-size: 0.85rem !important;
+        padding: 0.5rem 0.8rem !important;
+    }
+    .message-wrapper .avatar {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 0.6rem !important;
+        margin: 0 0.25rem !important;
+    }
+    .control-select {
+        font-size: 0.65rem !important;
+        padding: 0.25rem 1.2rem 0.25rem 0.6rem !important;
+    }
+    .toggle-btn {
+        font-size: 0.6rem !important;
+        padding: 0.2rem 0.5rem !important;
+    }
+    .toggle-btn i {
+        font-size: 0.65rem !important;
+    }
+    .chat-form {
+        padding: 0.2rem 0.2rem 0.2rem 0.6rem !important;
+    }
+    .chat-form input {
+        font-size: 0.85rem !important;
+        padding: 0.4rem 0 !important;
+    }
+    .chat-form .send-btn {
+        padding: 0.4rem 0.7rem !important;
+        font-size: 0.8rem !important;
+    }
+    .welcome-container h2 {
+        font-size: 1.2rem !important;
+    }
+    .welcome-container .icon {
+        font-size: 3rem !important;
+    }
+    .welcome-container p {
+        font-size: 0.85rem !important;
+    }
+    #active-session-title {
+        font-size: 0.85rem !important;
+    }
+    .sidebar {
+        width: 260px !important;
+    }
+    .sidebar .brand {
+        font-size: 1rem !important;
+    }
+    .session-item {
+        padding: 0.4rem 0.6rem !important;
+    }
+    .session-item .session-name {
+        font-size: 0.75rem !important;
+    }
+    .btn-new-session {
+        padding: 0.5rem 0.8rem !important;
+        font-size: 0.8rem !important;
+    }
+    .btn-new-session i {
+        font-size: 0.7rem !important;
+    }
+}
+
+/* ===== BREAKPOINT SM (petits écrans 481-640px) ===== */
+@media (min-width: 481px) and (max-width: 640px) {
+    .chat-header {
+        padding: 0.7rem 1rem !important;
+    }
+    .chat-messages {
+        padding: 0.8rem 0.6rem !important;
+    }
+    .chat-input-area {
+        padding: 0.8rem 0.8rem !important;
+    }
+    .message-wrapper.user .bubble,
+    .message-wrapper.assistant .bubble {
+        max-width: 88% !important;
+        font-size: 0.9rem !important;
+    }
+    .message-wrapper .avatar {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 0.65rem !important;
+    }
+    .control-select {
+        font-size: 0.7rem !important;
+        padding: 0.3rem 1.4rem 0.3rem 0.7rem !important;
+    }
+    .toggle-btn {
+        font-size: 0.65rem !important;
+        padding: 0.25rem 0.6rem !important;
+    }
+    .chat-form input {
+        font-size: 0.9rem !important;
+    }
+    .welcome-container h2 {
+        font-size: 1.4rem !important;
+    }
+    .welcome-container .icon {
+        font-size: 3.5rem !important;
+    }
+    #active-session-title {
+        font-size: 0.9rem !important;
+    }
+}
+
+/* ===== BREAKPOINT MD (tablettes 641-1024px) ===== */
+@media (min-width: 641px) and (max-width: 1024px) {
+    .chat-messages {
+        padding: 1.2rem 1.2rem !important;
+    }
+    .chat-input-area {
+        padding: 1rem 1.2rem !important;
+    }
+    .message-wrapper.user .bubble,
+    .message-wrapper.assistant .bubble {
+        max-width: 80% !important;
+    }
+    .sidebar {
+        width: 220px !important;
+    }
+    .sidebar .brand {
+        font-size: 0.95rem !important;
+    }
+}
+
+/* ===== DESKTOP LARGE (1025px+) ===== */
+@media (min-width: 1025px) {
+    .chat-messages {
+        padding: 2rem 2.5rem !important;
+    }
+    .chat-input-area {
+        padding: 1.2rem 2.5rem !important;
+    }
+    .message-wrapper.user .bubble,
+    .message-wrapper.assistant .bubble {
+        max-width: 75% !important;
+    }
+}
+
+/* ===== UTILITAIRES RESPONSIVES ===== */
+.xs\:inline {
+    display: none;
+}
+@media (min-width: 480px) {
+    .xs\:inline {
+        display: inline;
+    }
+}
+.sm\:block {
+    display: none;
+}
+@media (min-width: 640px) {
+    .sm\:block {
+        display: block;
+    }
+}
+.sm\:inline {
+    display: none;
+}
+@media (min-width: 640px) {
+    .sm\:inline {
+        display: inline;
+    }
+}
+.hidden {
+    display: none !important;
+}
+@media (max-width: 767px) {
+    .md\:flex {
+        display: none !important;
+    }
+}
+@media (min-width: 768px) {
+    .md\:flex {
+        display: flex !important;
+    }
+}
+.shrink-0 {
+    flex-shrink: 0;
+}
+.min-w-0 {
+    min-width: 0;
+}
+.min-h-0 {
+    min-height: 0;
+}
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ===== SCROLLBAR MOBILE PLUS DISCÈTE ===== */
+@media (max-width: 640px) {
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #2a3f5a;
+        border-radius: 99px;
+    }
+}
 }

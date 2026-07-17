@@ -1,10 +1,10 @@
 {% extends "base_auth.html" %}
 
-{% block title %}Connexion{% endblock %}
+{% block title %}Connexion – HIGHFIVE AI{% endblock %}
 
 {% block content %}
 <h3 class="text-xl font-bold text-white text-center mb-2">Ravi de vous revoir</h3>
-<p class="text-zinc-500 text-center text-sm mb-6">Connectez-vous pour continuer</p>
+<p class="text-zinc-500 text-center text-sm mb-6">Connectez-vous à votre assistant HIGHFIVE</p>
 
 <form method="POST" class="space-y-4">
     <div>
@@ -26,6 +26,6 @@
 </form>
 
 <p class="text-center text-xs text-zinc-500 mt-6">
-    Pas encore inscrit ? <a href="{{ url_for('auth.register') }}" class="text-amber-400 hover:text-amber-300 font-semibold transition">Créer un compte</a>
+    Pas encore inscrit ? <a href="{{ url_for('auth.register') }}" class="text-amber-400 hover:text-amber-300 font-semibold transition">Créer un compte HIGHFIVE</a>
 </p>
 {% endblock %}
