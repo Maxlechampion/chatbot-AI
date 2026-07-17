@@ -33,6 +33,8 @@ def register():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+         
+        print(f"📝 Tentative d'inscription : username={username}, email={email}")
         
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Un compte existe déjà avec ce nom d\'utilisateur ou cet e-mail.', 'danger')
